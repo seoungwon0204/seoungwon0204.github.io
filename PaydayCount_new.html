@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Lato:400,700|Montserrat:900">
+    <title>Countdown Timers</title>
+    <style>
+        body {
+            background-color: #2a2a2a;
+            color: #e0e0e0;
+            font-family: 'Lato', sans-serif;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        /* Info bar */
+        .info-bar {
+            background-color: #3a3a3a;
+            width: 220px;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.8em;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .info-bar-progress {
+            position: absolute;
+            inset: 0;
+            width: 0%;
+            background: linear-gradient(to right, #1e3d58, #183a4f);
+            transition: width 1s ease-in-out;
+        }
+
+        .info-bar-text {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+        }
+
+        .info-bar-tooltip {
+            position: absolute;
+            top: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.85);
+            color: #e0e0e0;
+            padding: 6px 12px;
+            border-radius: 5px;
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s;
+            z-index: 10;
+        }
+
+        .info-bar-tooltip::before {
+            content: '';
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-bottom-color: rgba(0,0,0,0.85);
+        }
+
+        .info-bar:hover .info-bar-tooltip { opacity: 1; }
+
+        /* Timer blocks */
+        .timers {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .block {
+            background-color: #1f1f1f;
+            padding: 10px;
+            width: 60px;
+            border-radius: 5px;
+            text-align: center;
+        }
+
+        .block.days-worked { background-color: #333; }
+
+        .block span {
+            font-family: 'Montserrat', sans-serif;
+            font-size: 1.8em;
+        }
+
+        .label {
+            font-size: 0.7em;
+            text-transform: uppercase;
+        }
+
+        .divider {
+            width: 2px;
+            height: 60px;
+            background-color: #444;
+        }
+
+        /* Time gauge */
+        .time-gauge-container {
+            width: 100%;
+            max-width: 500px;
+            height: 8px;
+            background-color: #444;
+            border-radius: 4px;
+            margin-top: 30px;
+            position: relative;
+        }
+
+        @keyframes rainbow-slide {
+            0%   { background-position: 0% 50%; }
+            100% { background-position: 200% 50%; }
+        }
+
+        .time-gauge {
+            height: 100%;
+            width: 0%;
+            border-radius: 4px;
+            background: linear-gradient(to right, #001f3f, #003366, #004080, #00509e, #0066cc);
+            transition: width 1s linear;
+        }
+
+        .time-gauge-container:hover .time-gauge {
+            background: linear-gradient(
+                to right,
+                #ffb3b3, #ffd9b3, #ffffb3, #b3ffb3, #b3d9ff, #d9b3ff, #ffb3e6,
+                #ffb3b3, #ffd9b3, #ffffb3, #b3ffb3, #b3d9ff, #d9b3ff, #ffb3e6
+            );
+            background-size: 200% 100%;
+            animation: rainbow-slide 1.5s linear infinite;
+        }
+
+        .time-gauge-tooltip {
+            position: absolute;
+            top: -35px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            padding: 6px 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            white-space: nowrap;
+        }
+
+        .time-gauge-container:hover .time-gauge-tooltip { opacity: 1; }
+
+        @media (max-width: 600px) {
+            .timers { flex-direction: column; }
+            .divider { width: 100%; height: 2px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="info-bar">
+    <div class="info-bar-progress" id="info-bar-progress"></div>
+    <div class="info-bar-text" id="current-time-text"></div>
+    <div class="info-bar-tooltip" id="dday-tooltip"></div>
+</div>
+
+<div class="timers">
+    <div class="block"><span id="payday-days"></span><div class="label">days</div></div>
+    <div class="block"><span id="payday-hours"></span><div class="label">hours</div></div>
+    <div class="block"><span id="payday-minutes"></span><div class="label">minutes</div></div>
+    <div class="block"><span id="payday-seconds"></span><div class="label">seconds</div></div>
+    <div class="divider"></div>
+    <div class="block days-worked"><span id="days-worked"></span><div class="label">days worked</div></div>
+</div>
+
+<div class="time-gauge-container">
+    <div class="time-gauge" id="time-gauge"></div>
+    <div class="time-gauge-tooltip" id="time-tooltip"></div>
+</div>
+
+<script>
+    const START_DATE = new Date("2022-11-01");
+    const WORK_START = 9, WORK_END = 19;
+
+    function getPayday(now) {
+        const { y, m, d, h } = { y: now.getFullYear(), m: now.getMonth(), d: now.getDate(), h: now.getHours() };
+        const beforePayday = d < 24 || (d === 24 && h < 7);
+        return {
+            last: beforePayday ? new Date(y, m - 1, 24, 7) : new Date(y, m, 24, 7),
+            next: beforePayday ? new Date(y, m, 24, 7) : new Date(y, m + 1, 24, 7),
+        };
+    }
+
+    function tick() {
+        const now = new Date();
+
+        // Current time display
+        document.getElementById("current-time-text").textContent =
+            now.toLocaleString("en-US", { month: "2-digit", day: "2-digit", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: true })
+               .replace(",", " |");
+
+        // Payday countdown
+        const { last, next } = getPayday(now);
+        const diff = next - now;
+        document.getElementById("payday-days").textContent    = Math.floor(diff / 86400000);
+        document.getElementById("payday-hours").textContent   = Math.floor(diff / 3600000) % 24;
+        document.getElementById("payday-minutes").textContent = Math.floor(diff / 60000) % 60;
+        document.getElementById("payday-seconds").textContent = Math.floor(diff / 1000) % 60;
+
+        // D-day tooltip on info bar
+        const daysToNext = Math.ceil((next - now) / 86400000);
+        document.getElementById("dday-tooltip").textContent = `D-${daysToNext} until payday`;
+        const pct = Math.min(100, Math.max(0, ((now - last) / (next - last)) * 100));
+        document.getElementById("info-bar-progress").style.width = pct + "%";
+
+        // Days worked
+        document.getElementById("days-worked").textContent = Math.floor((now - START_DATE) / 86400000);
+
+        // Work day time gauge
+        const minsPassed = (now.getHours() - WORK_START) * 60 + now.getMinutes();
+        const totalMins  = (WORK_END - WORK_START) * 60;
+        const gaugePct   = Math.max(0, Math.min(100, (minsPassed / totalMins) * 100));
+        const remain     = Math.max(0, totalMins - minsPassed);
+        document.getElementById("time-gauge").style.width   = gaugePct + "%";
+        document.getElementById("time-tooltip").textContent = `남은 시간: ${Math.floor(remain / 60)}h ${remain % 60}m`;
+    }
+
+    tick();
+    setInterval(tick, 1000);
+</script>
+
+</body>
+</html>
