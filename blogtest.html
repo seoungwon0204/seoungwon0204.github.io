@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<body>
+  <h3>My Project Notes</h3>
+  <textarea id="noteBox" placeholder="Type something..."></textarea>
+  <button onclick="saveNote()">Save Locally</button>
+
+  <script>
+    // Load existing note on page refresh
+    document.getElementById('noteBox').value = localStorage.getItem('userNote') || "";
+
+    function saveNote() {
+      const text = document.getElementById('noteBox').value;
+      localStorage.setItem('userNote', text);
+      alert("Saved to your browser!");
+    }
+  </script>
+</body>
+</html>
