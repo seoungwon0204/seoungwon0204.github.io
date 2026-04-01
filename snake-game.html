@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SNAKE — A Modern Classic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne+Mono&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:       #080c10;
+    --surface:  #0d1520;
+    --border:   #1a2a3a;
+    --accent:   #00e5a0;
+    --accent2:  #005a3d;
+    --food:     #ff4d6d;
+    --text:     #cfd8e3;
+    --dim:      #3a4f60;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  /* subtle grid bg */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.35;
+    pointer-events: none;
+  }
+
+  /* glowing ambient orb */
+  body::after {
+    content: '';
+    position: fixed;
+    width: 600px; height: 600px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,229,160,0.07) 0%, transparent 70%);
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+
+  .wrapper {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+
+  /* ── Header ── */
+  header {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+  }
+  header h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: 0.3em;
+    color: #fff;
+    text-transform: uppercase;
+  }
+  header .ver {
+    font-family: 'Syne Mono', monospace;
+    font-size: 0.7rem;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    padding: 2px 8px;
+    border: 1px solid var(--accent2);
+    border-radius: 3px;
+  }
+
+  /* ── HUD ── */
+  .hud {
+    width: 500px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'Syne Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 0.1em;
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+  .hud .score-block { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+  .hud .score-block.right { align-items: flex-end; }
+  .hud .label { font-size: 0.6rem; color: var(--dim); }
+  .hud .value {
+    font-size: 1.5rem;
+    color: var(--text);
+    transition: color 0.15s;
+  }
+  .hud .value.flash { color: var(--accent); }
+
+  /* ── Canvas container ── */
+  .canvas-wrap {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px var(--border), 0 0 60px rgba(0,229,160,0.06);
+  }
+
+  canvas { display: block; }
+
+  /* ── Overlay ── */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(8,12,16,0.88);
+    backdrop-filter: blur(8px);
+    gap: 18px;
+    transition: opacity 0.3s;
+  }
+  .overlay.hidden { opacity: 0; pointer-events: none; }
+
+  .overlay .big-title {
+    font-size: 3.5rem;
+    font-weight: 800;
+    letter-spacing: 0.2em;
+    color: #fff;
+    text-transform: uppercase;
+    line-height: 1;
+  }
+  .overlay .subtitle {
+    font-family: 'Syne Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--accent);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+  .overlay .stat-row {
+    display: flex;
+    gap: 40px;
+    margin-top: 8px;
+  }
+  .overlay .stat { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .overlay .stat .s-label {
+    font-family: 'Syne Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--dim);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  .overlay .stat .s-value {
+    font-family: 'Syne Mono', monospace;
+    font-size: 1.8rem;
+    color: var(--text);
+  }
+
+  .btn {
+    margin-top: 10px;
+    padding: 12px 40px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'Syne', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+  }
+  .btn:hover {
+    background: var(--accent);
+    color: #080c10;
+    box-shadow: 0 0 20px rgba(0,229,160,0.3);
+  }
+
+  /* ── Controls hint ── */
+  .controls {
+    display: flex;
+    gap: 24px;
+    font-family: 'Syne Mono', monospace;
+    font-size: 0.6rem;
+    letter-spacing: 0.1em;
+    color: var(--dim);
+    text-transform: uppercase;
+  }
+  .controls span { display: flex; align-items: center; gap: 6px; }
+  .key {
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 2px 6px;
+    color: var(--text);
+    font-size: 0.65rem;
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <header>
+    <h1>Snake</h1>
+    <span class="ver">v2.0</span>
+  </header>
+
+  <div class="hud">
+    <div class="score-block">
+      <span class="label">Score</span>
+      <span class="value" id="scoreDisplay">000</span>
+    </div>
+    <div class="score-block right">
+      <span class="label">Best</span>
+      <span class="value" id="bestDisplay">000</span>
+    </div>
+  </div>
+
+  <div class="canvas-wrap">
+    <canvas id="c" width="500" height="500"></canvas>
+    <div class="overlay" id="overlay">
+      <div class="big-title" id="overlayTitle">Snake</div>
+      <div class="subtitle" id="overlaySubtitle">Ready to play?</div>
+      <div class="stat-row" id="statRow" style="display:none">
+        <div class="stat"><span class="s-label">Score</span><span class="s-value" id="finalScore">0</span></div>
+        <div class="stat"><span class="s-label">Length</span><span class="s-value" id="finalLen">0</span></div>
+        <div class="stat"><span class="s-label">Best</span><span class="s-value" id="finalBest">0</span></div>
+      </div>
+      <button class="btn" id="startBtn">Start Game</button>
+    </div>
+  </div>
+
+  <div class="controls">
+    <span><span class="key">↑↓←→</span> Move</span>
+    <span><span class="key">WASD</span> Move</span>
+    <span><span class="key">P</span> Pause</span>
+    <span><span class="key">Space</span> Start / Restart</span>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const CELL = 20, COLS = W / CELL, ROWS = H / CELL;
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('startBtn');
+const scoreEl = document.getElementById('scoreDisplay');
+const bestEl = document.getElementById('bestDisplay');
+const overlayTitle = document.getElementById('overlayTitle');
+const overlaySub = document.getElementById('overlaySubtitle');
+const statRow = document.getElementById('statRow');
+const finalScore = document.getElementById('finalScore');
+const finalLen = document.getElementById('finalLen');
+const finalBest = document.getElementById('finalBest');
+
+// ── Game state ──
+let snake, dir, nextDir, food, score, best = 0, interval, particles = [], running = false, paused = false;
+
+// ── Colours ──
+const ACCENT = '#00e5a0';
+const FOOD_C = '#ff4d6d';
+const SNAKE_HEAD = '#00e5a0';
+const SNAKE_BODY = '#00b87d';
+const BG = '#080c10';
+const GRID = 'rgba(26,42,58,0.5)';
+
+function fmt(n) { return String(n).padStart(3, '0'); }
+
+function rand(max) { return Math.floor(Math.random() * max); }
+
+function placeFood() {
+  let pos;
+  do { pos = { x: rand(COLS), y: rand(ROWS) }; }
+  while (snake.some(s => s.x === pos.x && s.y === pos.y));
+  food = pos;
+}
+
+function initGame() {
+  const cx = Math.floor(COLS / 2), cy = Math.floor(ROWS / 2);
+  snake = [{ x: cx, y: cy }, { x: cx - 1, y: cy }, { x: cx - 2, y: cy }];
+  dir = { x: 1, y: 0 };
+  nextDir = { x: 1, y: 0 };
+  score = 0;
+  particles = [];
+  placeFood();
+  updateHUD();
+}
+
+function updateHUD() {
+  scoreEl.textContent = fmt(score);
+  bestEl.textContent = fmt(best);
+}
+
+// ── Particle system ──
+function spawnParticles(x, y, color) {
+  const cx = x * CELL + CELL / 2, cy = y * CELL + CELL / 2;
+  for (let i = 0; i < 18; i++) {
+    const angle = (Math.PI * 2 / 18) * i + (Math.random() - 0.5) * 0.5;
+    const speed = 1.5 + Math.random() * 3;
+    particles.push({
+      x: cx, y: cy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 1,
+      color,
+      size: 2 + Math.random() * 3
+    });
+  }
+}
+
+function updateParticles() {
+  particles = particles.filter(p => p.life > 0.02);
+  particles.forEach(p => {
+    p.x += p.vx; p.y += p.vy;
+    p.vx *= 0.92; p.vy *= 0.92;
+    p.life *= 0.88;
+  });
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+}
+
+// ── Draw ──
+function draw() {
+  // Background
+  ctx.fillStyle = BG;
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid dots
+  ctx.fillStyle = GRID;
+  for (let gx = 0; gx < COLS; gx++) {
+    for (let gy = 0; gy < ROWS; gy++) {
+      ctx.beginPath();
+      ctx.arc(gx * CELL + CELL / 2, gy * CELL + CELL / 2, 1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Food glow
+  const fx = food.x * CELL + CELL / 2, fy = food.y * CELL + CELL / 2;
+  const t = Date.now() / 600;
+  const pulse = 0.5 + 0.5 * Math.sin(t);
+  const grd = ctx.createRadialGradient(fx, fy, 0, fx, fy, CELL * (1.2 + 0.4 * pulse));
+  grd.addColorStop(0, 'rgba(255,77,109,0.35)');
+  grd.addColorStop(1, 'rgba(255,77,109,0)');
+  ctx.fillStyle = grd;
+  ctx.beginPath();
+  ctx.arc(fx, fy, CELL * (1.2 + 0.4 * pulse), 0, Math.PI * 2);
+  ctx.fill();
+
+  // Food dot
+  ctx.fillStyle = FOOD_C;
+  ctx.beginPath();
+  ctx.arc(fx, fy, CELL / 2 - 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Snake
+  snake.forEach((seg, i) => {
+    const sx = seg.x * CELL, sy = seg.y * CELL;
+    const r = i === 0 ? 6 : 4;
+    const t2 = i / snake.length;
+    // interpolate head→body colour
+    const blend = (a, b, t) => Math.round(a + (b - a) * t);
+    const hr = 0, hg = 229, hb = 160;
+    const br = 0, bg = 184, bb = 125;
+    const cr = blend(hr, br, t2), cg = blend(hg, bg, t2), cb = blend(hb, bb, t2);
+    ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
+
+    // rounded rect
+    const pad = i === 0 ? 1 : 2;
+    roundRect(ctx, sx + pad, sy + pad, CELL - pad * 2, CELL - pad * 2, r);
+    ctx.fill();
+
+    // head eyes
+    if (i === 0) {
+      ctx.fillStyle = '#fff';
+      const ex1 = sx + (dir.x === 0 ? CELL * 0.3 : (dir.x > 0 ? CELL * 0.65 : CELL * 0.2));
+      const ey1 = sy + (dir.y === 0 ? CELL * 0.3 : (dir.y > 0 ? CELL * 0.65 : CELL * 0.2));
+      const ex2 = sx + (dir.x === 0 ? CELL * 0.7 : (dir.x > 0 ? CELL * 0.65 : CELL * 0.2));
+      const ey2 = sy + (dir.y === 0 ? CELL * 0.3 : (dir.y > 0 ? CELL * 0.65 : CELL * 0.8));
+      ctx.beginPath(); ctx.arc(ex1, ey1, 2.2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(ex2, ey2, 2.2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.beginPath(); ctx.arc(ex1 + dir.x, ey1 + dir.y, 1.1, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(ex2 + dir.x, ey2 + dir.y, 1.1, 0, Math.PI * 2); ctx.fill();
+    }
+  });
+
+  updateParticles();
+  drawParticles();
+
+  // Pause vignette
+  if (paused) {
+    ctx.fillStyle = 'rgba(8,12,16,0.6)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#fff';
+    ctx.font = '700 1.5rem Syne';
+    ctx.textAlign = 'center';
+    ctx.letterSpacing = '0.3em';
+    ctx.fillText('PAUSED', W / 2, H / 2);
+    ctx.textAlign = 'left';
+  }
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// ── Tick ──
+function tick() {
+  if (paused) return;
+  dir = nextDir;
+  const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+
+  // Wall collision
+  if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) { gameOver(); return; }
+  // Self collision
+  if (snake.some(s => s.x === head.x && s.y === head.y)) { gameOver(); return; }
+
+  snake.unshift(head);
+
+  if (head.x === food.x && head.y === food.y) {
+    score += 10;
+    if (score > best) best = score;
+    updateHUD();
+    flash();
+    spawnParticles(food.x, food.y, FOOD_C);
+    placeFood();
+  } else {
+    snake.pop();
+  }
+}
+
+function flash() {
+  scoreEl.classList.add('flash');
+  setTimeout(() => scoreEl.classList.remove('flash'), 200);
+}
+
+// ── Game over ──
+function gameOver() {
+  running = false;
+  clearInterval(interval);
+  spawnParticles(snake[0].x, snake[0].y, ACCENT);
+
+  overlayTitle.textContent = 'Game Over';
+  overlaySub.textContent = 'Better luck next time';
+  statRow.style.display = 'flex';
+  finalScore.textContent = fmt(score);
+  finalLen.textContent = fmt(snake.length);
+  finalBest.textContent = fmt(best);
+  startBtn.textContent = 'Play Again';
+  overlay.classList.remove('hidden');
+}
+
+// ── Start ──
+function startGame() {
+  initGame();
+  overlay.classList.add('hidden');
+  running = true;
+  paused = false;
+  clearInterval(interval);
+  interval = setInterval(tick, 110);
+}
+
+// ── Render loop ──
+function loop() {
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+
+// ── Controls ──
+document.addEventListener('keydown', e => {
+  const map = {
+    ArrowUp: { x: 0, y: -1 }, ArrowDown: { x: 0, y: 1 },
+    ArrowLeft: { x: -1, y: 0 }, ArrowRight: { x: 1, y: 0 },
+    w: { x: 0, y: -1 }, s: { x: 0, y: 1 },
+    a: { x: -1, y: 0 }, d: { x: 1, y: 0 },
+    W: { x: 0, y: -1 }, S: { x: 0, y: 1 },
+    A: { x: -1, y: 0 }, D: { x: 1, y: 0 }
+  };
+  if (map[e.key] && running) {
+    const nd = map[e.key];
+    if (nd.x !== -dir.x || nd.y !== -dir.y) nextDir = nd;
+    e.preventDefault();
+  }
+  if ((e.key === ' ' || e.key === 'Spacebar') && !running) { startGame(); e.preventDefault(); }
+  if (e.key === 'p' || e.key === 'P') { if (running) paused = !paused; }
+});
+
+// Touch swipe
+let tx = null, ty = null;
+canvas.addEventListener('touchstart', e => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
+canvas.addEventListener('touchend', e => {
+  if (!running || tx === null) return;
+  const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    const nd = dx > 0 ? { x: 1, y: 0 } : { x: -1, y: 0 };
+    if (nd.x !== -dir.x) nextDir = nd;
+  } else {
+    const nd = dy > 0 ? { x: 0, y: 1 } : { x: 0, y: -1 };
+    if (nd.y !== -dir.y) nextDir = nd;
+  }
+  tx = ty = null;
+}, { passive: true });
+
+startBtn.addEventListener('click', startGame);
+
+// Initial draw
+draw();
+</script>
+</body>
+</html>
