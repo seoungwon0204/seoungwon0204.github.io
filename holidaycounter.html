@@ -28,12 +28,86 @@
       font-size: 0.8rem;
       margin-bottom: 0.5rem;
       color: #ffffff;
+      /* 물음표를 제목 옆에 배치하기 위한 설정 */
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.3rem;
     }
     .countdown {
       font-weight: bold;
       text-shadow: 0 0 4px rgba(255, 255, 255, 0.3);
       transition: font-size 0.3s ease;
     }
+
+    /* 물음표 마크 */
+    .help {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 1px solid #888;
+      color: #aaa;
+      font-size: 0.7rem;
+      font-weight: bold;
+      cursor: help;
+      user-select: none;
+    }
+
+    /* 툴팁 (위쪽에 표시) */
+    .help .tooltip {
+      position: absolute;
+      bottom: 130%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #2a2a2a;
+      color: #e0e0e0;
+      border: 1px solid #444;
+      border-radius: 6px;
+      padding: 0.5rem 0.7rem;
+      font-size: 0.7rem;
+      font-weight: normal;
+      line-height: 1.5;
+      white-space: nowrap;
+      text-align: left;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s ease;
+      z-index: 10;
+    }
+    /* 툴팁 아래 화살표 */
+    .help .tooltip::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border-width: 5px;
+      border-style: solid;
+      border-color: #2a2a2a transparent transparent transparent;
+    }
+    .help:hover .tooltip {
+      opacity: 1;
+      visibility: visible;
+    }
+    .tooltip-title {
+      color: #ffffff;
+      font-weight: bold;
+      margin-bottom: 0.3rem;
+    }
+    .tooltip-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.8rem;
+    }
+    .tooltip-row .dday {
+      color: #7fd7ff;
+    }
+
     @media (max-width: 600px) {
       .counter {
         padding: 0.8rem;
@@ -46,7 +120,12 @@
 </head>
 <body>
   <div class="counter">
-    <h1>다음 공휴일</h1>
+    <h1>
+      다음 공휴일
+      <span class="help">?
+        <span class="tooltip" id="tooltip">Loading...</span>
+      </span>
+    </h1>
     <div class="countdown" id="countdown">Loading...</div>
   </div>
 <script>
@@ -66,10 +145,25 @@
     ];
   }
 
+  // 현재 남은 일수 (색 변화 속도 계산에 사용)
+  let currentDiffDays = 50;
+
+  // 색상 위상을 계속 누적 → 속도를 바꿔도 색이 튀지 않고 부드럽게 이어짐
+  let hue = 0;
+  let lastFrame = performance.now();
+
   function updateRainbowColor() {
-    const now = Date.now();
-    const cycleTime = 60000;
-    const hue = (now % cycleTime) / cycleTime * 360;
+    const nowT = performance.now();
+    const dt = (nowT - lastFrame) / 1000; // 지난 프레임 이후 경과 초
+    lastFrame = nowT;
+
+    // 남은 일수를 1~50 범위로 제한
+    const d = Math.max(1, Math.min(50, currentDiffDays));
+    // D-1일이면 한 바퀴 2초(빠름), D-50 이상이면 한 바퀴 60초(느림)로 보간
+    const cycleSeconds = 2 + (60 - 2) * (d - 1) / 49;
+    const degPerSec = 360 / cycleSeconds;
+
+    hue = (hue + degPerSec * dt) % 360;
     const [r, g, b] = hslToRgb(hue, 100, 50);
     document.getElementById('countdown').style.color = `rgb(${r}, ${g}, ${b})`;
   }
@@ -90,9 +184,33 @@
     new Date(2026, 11, 25)  // 12/25
   ];
 
+  function daysUntil(date, today) {
+    return Math.ceil((date - today) / (1000 * 60 * 60 * 24));
+  }
+
+  function updateTooltip(today) {
+    const upcoming = holidays.filter(date => date >= today);
+    const tooltip = document.getElementById('tooltip');
+
+    if (upcoming.length === 0) {
+      tooltip.textContent = "남은 공휴일이 없습니다 🎉";
+      return;
+    }
+
+    let html = '<div class="tooltip-title">남은 공휴일</div>';
+    upcoming.forEach(date => {
+      const label = `${date.getMonth() + 1}/${date.getDate()}`;
+      const dday = daysUntil(date, today);
+      html += `<div class="tooltip-row"><span>${label}</span><span class="dday">D-${dday}</span></div>`;
+    });
+    tooltip.innerHTML = html;
+  }
+
   function updateCountdown() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+
+    updateTooltip(today);
 
     const nextHoliday = holidays.find(date => date >= today);
 
@@ -101,8 +219,8 @@
       return;
     }
 
-    const diffTime = nextHoliday - today;
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    const diffDays = daysUntil(nextHoliday, today);
+    currentDiffDays = diffDays; // 색 변화 속도에 반영
 
     // Font size logic
     let fontSize;
@@ -123,7 +241,7 @@
   updateRainbowColor();
 
   setInterval(updateCountdown, 60 * 60 * 1000);
-  setInterval(updateRainbowColor, 100);
+  setInterval(updateRainbowColor, 50); // 부드러운 색 전환을 위해 갱신 주기 단축
 </script>
 
 </body>
