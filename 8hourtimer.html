@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Timer</title>
+  <style>
+    :root {
+      --dur-hours: 8;            /* 카운트다운 시간 (시간 단위) */
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+    body {
+      font-family: Arial, sans-serif;
+      background: #191919;
+      color: #e0e0e0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .counter {
+      position: relative;
+      background: #1e1e1e;
+      padding: 1.4rem 1.8rem;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+      text-align: center;
+      transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+      user-select: none;
+    }
+    .counter:hover {
+      transform: translateY(-4px) scale(1.03);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+      background: #242424;
+    }
+
+    .time {
+      font-weight: bold;
+      font-size: 2.6rem;
+      letter-spacing: 1px;
+      font-variant-numeric: tabular-nums;
+      cursor: pointer;
+      color: var(--c, #ffffff);
+      text-shadow: 0 0 6px var(--glow, rgba(255, 255, 255, 0.35));
+      transition: transform 0.2s ease, text-shadow 0.2s ease, opacity 0.3s ease;
+    }
+    .time:hover {
+      transform: scale(1.06);
+      text-shadow: 0 0 16px var(--glow, rgba(255, 255, 255, 0.7));
+    }
+    /* 시작 전 상태: 살짝 흐리게 + 은은한 깜빡임 */
+    .time.idle {
+      opacity: 0.45;
+      animation: breathe 2.4s ease-in-out infinite;
+    }
+    @keyframes breathe {
+      0%, 100% { opacity: 0.35; }
+      50%      { opacity: 0.6; }
+    }
+
+    /* 리셋 버튼 (호버 시에만 살짝 표시) */
+    .reset {
+      position: absolute;
+      top: 6px;
+      right: 8px;
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      color: #666;
+      font-size: 0.8rem;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    }
+    .counter:hover .reset { opacity: 0.5; }
+    .reset:hover {
+      opacity: 1;
+      color: #fff;
+      transform: rotate(-90deg);
+    }
+  </style>
+</head>
+<body>
+  <div class="counter">
+    <div class="reset" id="reset" title="reset">&#8635;</div>
+    <div class="time idle" id="time">00:00:00</div>
+  </div>
+
+<script>
+  const KEY = 'countdown_end_v1';
+  const DUR_HOURS = parseFloat(
+    getComputedStyle(document.documentElement).getPropertyValue('--dur-hours')
+  ) || 8;
+  const DUR_MS = DUR_HOURS * 60 * 60 * 1000;
+
+  const timeEl = document.getElementById('time');
+  const resetEl = document.getElementById('reset');
+
+  function getEnd() {
+    const v = localStorage.getItem(KEY);
+    return v ? parseInt(v, 10) : null;
+  }
+
+  function start() {
+    const end = Date.now() + DUR_MS;
+    try { localStorage.setItem(KEY, String(end)); } catch (e) {}
+    render();
+  }
+
+  function clear() {
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    render();
+  }
+
+  function fmt(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    const p = n => String(n).padStart(2, '0');
+    return `${p(h)}:${p(m)}:${p(sec)}`;
+  }
+
+  // 남은 비율(0~1)에 따라 색을 청록 -> 호박색으로 은은하게 이동
+  function colorFor(frac) {
+    frac = Math.max(0, Math.min(1, frac));
+    const hue = 40 + (190 - 40) * frac;   // 190(청록) ~ 40(호박)
+    return {
+      c: `hsl(${hue}, 70%, 62%)`,
+      glow: `hsla(${hue}, 80%, 60%, 0.55)`
+    };
+  }
+
+  function render() {
+    const end = getEnd();
+
+    if (end === null) {
+      // 시작 전
+      timeEl.textContent = fmt(DUR_MS);
+      timeEl.classList.add('idle');
+      timeEl.style.setProperty('--c', '#ffffff');
+      timeEl.style.setProperty('--glow', 'rgba(255,255,255,0.35)');
+      return;
+    }
+
+    timeEl.classList.remove('idle');
+    const remaining = end - Date.now();
+
+    if (remaining <= 0) {
+      timeEl.textContent = '00:00:00';
+      const col = colorFor(0);
+      timeEl.style.setProperty('--c', col.c);
+      timeEl.style.setProperty('--glow', col.glow);
+      return;
+    }
+
+    timeEl.textContent = fmt(remaining);
+    const col = colorFor(remaining / DUR_MS);
+    timeEl.style.setProperty('--c', col.c);
+    timeEl.style.setProperty('--glow', col.glow);
+  }
+
+  // 숫자 클릭: 시작 전이면 시작, 진행 중이면 무시(실수 방지)
+  timeEl.addEventListener('click', () => {
+    if (getEnd() === null) start();
+  });
+
+  // 리셋 버튼: 처음부터 다시 8시간
+  resetEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    clear();
+  });
+
+  render();
+  setInterval(render, 500);
+</script>
+</body>
+</html>
