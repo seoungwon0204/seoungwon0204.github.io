@@ -152,6 +152,16 @@
     }
 
     .hidden { display: none !important; }
+
+    /* ===== 컨페티 ===== */
+    #confetti {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 100;
+    }
   </style>
 </head>
 <body>
@@ -172,6 +182,8 @@
     <div class="gauge hidden" id="gauge"><div class="gauge-fill" id="gaugeFill"></div></div>
   </div>
 
+  <canvas id="confetti"></canvas>
+
 <script>
   const KEY = 'countdown_end_v1';
   const QUICK_HOURS = parseFloat(
@@ -188,6 +200,77 @@
   const quickBtn = document.getElementById('quick');
 
   quickBtn.textContent = `지금으로부터 ${QUICK_HOURS}시간 뒤`;
+
+  // ===== 컨페티 엔진 (한 번 발사) =====
+  const confettiCanvas = document.getElementById('confetti');
+  const cctx = confettiCanvas.getContext('2d');
+  let confettiParticles = [];
+  let confettiRAF = null;
+
+  function sizeCanvas() {
+    confettiCanvas.width = window.innerWidth;
+    confettiCanvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', sizeCanvas);
+  sizeCanvas();
+
+  function fireConfetti() {
+    sizeCanvas();
+    const W = confettiCanvas.width;
+    const H = confettiCanvas.height;
+    const colors = ['#7fd7ff', '#ffd166', '#ff6b6b', '#a0e57f', '#c792ea', '#ffffff'];
+    const count = 140;
+    confettiParticles = [];
+    for (let i = 0; i < count; i++) {
+      const angle = Math.PI * (1.0 + Math.random() * 1.0); // 위쪽으로 발사
+      const speed = 8 + Math.random() * 9;
+      confettiParticles.push({
+        x: W / 2 + (Math.random() - 0.5) * 80,
+        y: H * 0.62,
+        vx: Math.cos(angle) * speed + (Math.random() - 0.5) * 4,
+        vy: Math.sin(angle) * speed - 4,
+        size: 5 + Math.random() * 6,
+        color: colors[(Math.random() * colors.length) | 0],
+        rot: Math.random() * Math.PI,
+        vrot: (Math.random() - 0.5) * 0.3,
+        life: 0
+      });
+    }
+    if (!confettiRAF) confettiRAF = requestAnimationFrame(animateConfetti);
+  }
+
+  function animateConfetti() {
+    cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+    let alive = 0;
+    for (const p of confettiParticles) {
+      p.vy += 0.28;          // 중력
+      p.vx *= 0.99;          // 공기저항
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rot += p.vrot;
+      p.life += 1;
+      const alpha = Math.max(0, 1 - p.life / 140);
+      if (alpha <= 0 || p.y > confettiCanvas.height + 20) continue;
+      alive++;
+      cctx.save();
+      cctx.globalAlpha = alpha;
+      cctx.translate(p.x, p.y);
+      cctx.rotate(p.rot);
+      cctx.fillStyle = p.color;
+      cctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+      cctx.restore();
+    }
+    if (alive > 0) {
+      confettiRAF = requestAnimationFrame(animateConfetti);
+    } else {
+      cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+      confettiParticles = [];
+      confettiRAF = null;
+    }
+  }
+
+  // 이 목표(end)에 대해 컨페티를 이미 터뜨렸는지 기록
+  const CELEB_KEY = 'countdown_celebrated_v1';
 
   function getEnd() {
     const v = localStorage.getItem(KEY);
@@ -280,6 +363,12 @@
     gaugeFill.style.width = (progress * 100) + '%';
     gaugeFill.style.setProperty('--c', col.c);
     gaugeFill.style.setProperty('--glow', col.glow);
+
+    // 0 도달 시 이 목표에 대해 한 번만 컨페티 발사
+    if (remaining <= 0 && localStorage.getItem(CELEB_KEY) !== String(end)) {
+      try { localStorage.setItem(CELEB_KEY, String(end)); } catch (e) {}
+      fireConfetti();
+    }
   }
 
   // 수동 시작: 입력한 시각까지
@@ -296,6 +385,7 @@
   // 리셋 -> 설정 단계로
   resetEl.addEventListener('click', (e) => {
     e.stopPropagation();
+    try { localStorage.removeItem(CELEB_KEY); } catch (e) {}
     clearEnd();
     prefillInput();
   });
