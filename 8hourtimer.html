@@ -223,16 +223,16 @@
     confettiParticles = [];
     for (let i = 0; i < count; i++) {
       const angle = Math.PI * (1.0 + Math.random() * 1.0); // 위쪽으로 발사
-      const speed = 8 + Math.random() * 9;
+      const speed = 4 + Math.random() * 4.5;
       confettiParticles.push({
         x: W / 2 + (Math.random() - 0.5) * 80,
         y: H * 0.62,
-        vx: Math.cos(angle) * speed + (Math.random() - 0.5) * 4,
-        vy: Math.sin(angle) * speed - 4,
+        vx: Math.cos(angle) * speed + (Math.random() - 0.5) * 2,
+        vy: Math.sin(angle) * speed - 2,
         size: 5 + Math.random() * 6,
         color: colors[(Math.random() * colors.length) | 0],
         rot: Math.random() * Math.PI,
-        vrot: (Math.random() - 0.5) * 0.3,
+        vrot: (Math.random() - 0.5) * 0.18,
         life: 0
       });
     }
@@ -243,13 +243,13 @@
     cctx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
     let alive = 0;
     for (const p of confettiParticles) {
-      p.vy += 0.28;          // 중력
-      p.vx *= 0.99;          // 공기저항
+      p.vy += 0.12;          // 중력
+      p.vx *= 0.985;         // 공기저항
       p.x += p.vx;
       p.y += p.vy;
       p.rot += p.vrot;
       p.life += 1;
-      const alpha = Math.max(0, 1 - p.life / 140);
+      const alpha = Math.max(0, 1 - p.life / 240);
       if (alpha <= 0 || p.y > confettiCanvas.height + 20) continue;
       alive++;
       cctx.save();
